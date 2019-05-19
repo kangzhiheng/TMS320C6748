@@ -16,7 +16,7 @@
 #include "gpio.h"
 #include "timer.h"
 // 228MHz，定时一秒
-#define TMR_PERIOD_LSB32               (0x0D970100)    // 低32位，0x0D970100 ——> 228 000 000
+#define TMR_PERIOD_LSB32               (0x047868C0)    // 低32位，0x0D970100 ——> 228 000 000
 #define TMR_PERIOD_MSB32               (0x0)           // 高32位
 #define _HWREG(x) (*((volatile Uint32*)(x)))
 #define PINMUX0 _HWREG(0x01C14120)    // 多路寄存器0的地址 0X8000000
@@ -34,7 +34,7 @@ static void UARTIsr(void);            // 中断服务函数ISR
 /****************************************************************************/
 /*                         全局变量                                                                          */
 /****************************************************************************/
-unsigned char k = 0;
+unsigned int k = 0;
 unsigned int rxFlag = 0;        //判断是否有字符输入的标志
 unsigned char rxData = '0';     //UART接收的单个字符
 unsigned int rxASCII = 0;       //接收字符对应的ASCII码
@@ -43,7 +43,7 @@ unsigned int rxHigh = 0;        //ASCII码对应的16进制数的高位
 unsigned int rx[] = {0};        //存储一次性输入的所有字符对应的低位、高位的数组
 unsigned int mode = 0;          //数组中不同数对应的LED点亮状态
 unsigned int length = 0;        //用来记录数组中共有多少个数
-
+unsigned int Flagtimer = 0;        //用来记录数组中共有多少个数
 /*多路寄存器13的15-12位置为8h，配置为GP6[12]功能 */
 void _GPIOBank6Pin12PinMuxSetup()
 {
@@ -81,28 +81,28 @@ int main(void)
     PSCModuleControl(SOC_PSC_1_REGS,
                      HW_PSC_GPIO,
                      PSC_POWERDOMAIN_ALWAYS_ON,
-		             PSC_MDCTL_NEXT_ENABLE);
+                     PSC_MDCTL_NEXT_ENABLE);
 
 /****************************************************************************/
 /*                                                                          */
 /*                  GPIO 管脚复用配置                                                                       */
 /*                                                                          */
 /****************************************************************************/
-	_GPIOBank6Pin12PinMuxSetup();
-	_GPIOBank6Pin13PinMuxSetup();
-	_GPIOBank2Pin12PinMuxSetup();
-	_GPIOBank0Pin9PinMuxSetup();
+    _GPIOBank6Pin12PinMuxSetup();
+    _GPIOBank6Pin13PinMuxSetup();
+    _GPIOBank2Pin12PinMuxSetup();
+    _GPIOBank0Pin9PinMuxSetup();
 
 /****************************************************************************/
 /*                                                                          */
 /*                   GPIO 管脚初始化                                                                         */
 /*                                                                          */
 /****************************************************************************/
-	/*
-	    GPIODirModeSet设置管脚的方向，设置GPIO的输出方向
-	    第一个参数：GPIO模块在内存中的地址
-	    第二个参数：GPIO口的序号，C6748共有144个序号
-	*/
+    /*
+        GPIODirModeSet设置管脚的方向，设置GPIO的输出方向
+        第一个参数：GPIO模块在内存中的地址
+        第二个参数：GPIO口的序号，C6748共有144个序号
+    */
     GPIODirModeSet(SOC_GPIO_0_REGS, 109, GPIO_DIR_OUTPUT);    // GP6[12]的序号为109
     GPIODirModeSet(SOC_GPIO_0_REGS, 110, GPIO_DIR_OUTPUT);    // GP6[13]的序号为110
     GPIODirModeSet(SOC_GPIO_0_REGS, 45, GPIO_DIR_OUTPUT);     // GP2[12]的序号为45
@@ -119,7 +119,7 @@ int main(void)
     PSCModuleControl(SOC_PSC_1_REGS,
                      HW_PSC_UART2,     // UART2的PSC模块
                      PSC_POWERDOMAIN_ALWAYS_ON,
-		             PSC_MDCTL_NEXT_ENABLE);
+                     PSC_MDCTL_NEXT_ENABLE);
 
     // 此函数选择要使用的UART引脚, UART引脚与片上系统(SoC)中其他外围设备的引脚进行复用。
     UARTPinMuxSetup(2, FALSE);
@@ -165,7 +165,7 @@ int main(void)
                  UART_INT_TX_EMPTY |    \
                  UART_INT_RXDATA_CTI);
 
-    TimerDisable(SOC_TMR_2_REGS, TMR_TIMER12);
+
     TimerIntEnable(SOC_TMR_2_REGS, TMR_INT_TMR12_NON_CAPT_MODE);
     UARTIntEnable(SOC_UART_2_REGS, intFlags);
 
@@ -205,34 +205,26 @@ static void UARTIsr()
     // 接收中断
     if(UART_INTID_RX_DATA == int_id)
         {
-        	// rxData即为接收到的字符
+            // rxData即为接收到的字符
             rxData= UARTCharGetNonBlocking(SOC_UART_2_REGS);
             // 当该字符不是一次性输入的字符串的结束符时，执行以下操作 */
-            if ((rxData != '\r') && (rxData != '\n'))
-            {
-            	// 将标志位置高电平
-            	rxFlag = 1;
-            	// 将该字符转化成ASCII码
-            	rxASCII = rxData - '0' + 48;
-            	// 将该ASCII码对应的16进制数低位存入数组
-    			rxLow = rxASCII % 16;
-    			rx[length] = rxLow;
-    			length++;
-    			// 将该ASCII码对应的16进制数高位存入数组
-    			rxHigh = rxASCII / 16;
-    			rx[length] = rxHigh;
-    			// length用来统计数组中共多少个数
-    			length++;
-    	        /* Write a byte into the THR if THR is free. */
-    	        UARTCharPutNonBlocking(SOC_UART_2_REGS, 'a');
+                // 将标志位置高电平
+                rxFlag = 1;
+                // 将该字符转化成ASCII码
+                rxASCII = rxData - '0' + 48;
+                // 将该ASCII码对应的16进制数低位存入数组
+                rxLow = rxASCII % 16;
+                rx[length] = rxLow;
+                length++;
+                // 将该ASCII码对应的16进制数高位存入数组
+                rxHigh = rxASCII / 16;
+                rx[length] = rxHigh;
+                // length用来统计数组中共多少个数
+                length++;
+                /* Write a byte into the THR if THR is free. */
+                UARTCharPutNonBlocking(SOC_UART_2_REGS, rxData);
             }
-            /* 当该字符是一次性输入的字符串的结束符时，使能TIMER */
-            else if (rxData=='\n')
-            {
-    	    /* Write a byte into the THR if THR is free. */
-    	    UARTCharPutNonBlocking(SOC_UART_2_REGS, 'c');
-            }
-        }
+
     return;
 }
 
@@ -243,8 +235,9 @@ static void UARTIsr()
  /****************************************************************************/
 static void TimerIsr(void)
         {
+            Flagtimer=1;
             // 刚进入中断时要先关掉该中断
-            TimerIntDisable(SOC_TMR_2_REGS, TMR_INT_TMR12_NON_CAPT_MODE);
+            //TimerIntDisable(SOC_TMR_2_REGS, TMR_INT_TMR12_NON_CAPT_MODE);
         #ifdef _TMS320C6X
             // Clear interrupt status in DSPINTC
             IntEventClear(SYS_INT_T64P2_TINTALL);
@@ -255,121 +248,126 @@ static void TimerIsr(void)
             TimerIntStatusClear(SOC_TMR_2_REGS, TMR_INT_TMR12_NON_CAPT_MODE);
 
             // 确保接收到了字符
-            if (rxFlag == 1)
+            if(rxFlag)   // 如果rxFlag == 1，可能会报错
             {
-            	   // 根据数组中存储的数字决定LED状态
-            		mode = rx[k];
-            	   // mode不同时，LED点亮状态不同，如 mode = 0x5 = 0101，则LED3和LED5被点亮
-            		switch (mode)
-            		    			{
-            		    			case 0x0:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0x1:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			case 0x2:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45,  GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0x3:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			case 0x4:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0x5:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			case 0x6:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0x7:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			case 0x8:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0x9:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			case 0xa:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0xb:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			case 0xc:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0xd:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			case 0xe:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
-            		    					break;
-            		    			case 0xf:
-            		    			        GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
-            		    					GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
-            		    					break;
-            		    			}
-            	k = k + 1;
-            	// 数组中的所有数字状态实现完毕
-            	if (k == length)
-            	{
-            	    rxFlag = 0;
-            	    mode = 0;
-            	    TimerDisable(SOC_TMR_2_REGS, TMR_TIMER12);
-            	}
-        		// 再次开放中断
-        		TimerIntEnable(SOC_TMR_2_REGS, TMR_INT_TMR12_NON_CAPT_MODE);
-            	}
+                   // 根据数组中存储的数字决定LED状态
+                    mode = rx[k];
+                   // mode不同时，LED点亮状态不同，如 mode = 0x5 = 0101，则LED3和LED5被点亮
+                    switch (mode)
+                                    {
+                                    case 0x0:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0x1:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    case 0x2:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45,  GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0x3:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    case 0x4:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0x5:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    case 0x6:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0x7:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    case 0x8:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0x9:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    case 0xa:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0xb:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    case 0xc:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0xd:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    case 0xe:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                                            break;
+                                    case 0xf:
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_HIGH);
+                                            GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_HIGH);
+                                            break;
+                                    }
+                k = k + 1;
+                // 数组中的所有数字状态实现完毕
+                if (k == length+1)
+                {
+                    rxFlag = 0;
+                    mode = 0;
+                    k=0;
+                    length=0;
+                    GPIOPinWrite(SOC_GPIO_0_REGS, 110, GPIO_PIN_LOW);
+                    GPIOPinWrite(SOC_GPIO_0_REGS, 109, GPIO_PIN_LOW);
+                    GPIOPinWrite(SOC_GPIO_0_REGS, 45, GPIO_PIN_LOW);
+                    GPIOPinWrite(SOC_GPIO_0_REGS, 10, GPIO_PIN_LOW);
+                }
+                // 再次开放中断
+                TimerIntEnable(SOC_TMR_2_REGS, TMR_INT_TMR12_NON_CAPT_MODE);
+}
         }
 
 /****************************************************************************/
