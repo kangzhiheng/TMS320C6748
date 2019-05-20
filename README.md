@@ -9,11 +9,11 @@
 
 #### 实验参考代码
 
-- ##### 实验一：GPIO驱动LED与定时器中断
+- ##### 实验一：[GPIO驱动LED与定时器中断](https://github.com/kangzhiheng/TMS320C6748/tree/master/%E5%AE%9E%E9%AA%8C%E5%8F%82%E8%80%83%E4%BB%A3%E7%A0%81/%E5%AE%9E%E9%AA%8C%E4%B8%80)
 
-- ##### 实验二：UART中断接收串口通信驱动LED显示
+- ##### 实验二：[UART中断接收串口通信驱动LED显示](https://github.com/kangzhiheng/TMS320C6748/tree/master/%E5%AE%9E%E9%AA%8C%E5%8F%82%E8%80%83%E4%BB%A3%E7%A0%81/%E5%AE%9E%E9%AA%8C%E4%BA%8C)
 
-- ##### 实验三： **EPWM基础实验**
+- ##### 实验三： [**EPWM基础实验**](https://github.com/kangzhiheng/TMS320C6748/tree/master/%E5%AE%9E%E9%AA%8C%E5%8F%82%E8%80%83%E4%BB%A3%E7%A0%81/%E5%AE%9E%E9%AA%8C%E4%B8%89)
 
 - ##### 大作业： **FFT变换**
 
