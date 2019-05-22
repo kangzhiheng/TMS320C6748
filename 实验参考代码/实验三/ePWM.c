@@ -95,7 +95,7 @@ static void PWMTZIsr(void);     // PWM错误控制器中断服务函数
 
 int main(void)
 {
-	// 中断相关配置，这个函数没有修改
+	// 中断相关配置，这个函数可以不用修改
 	SetupIntc();
 	// EPWM配置，基地址选择，模式选择，powerDomain标志
 	PSCModuleControl(SOC_PSC_1_REGS,    // PSC在内存中的基本地址，EHRPWM属于PSC1模块
@@ -116,7 +116,7 @@ int main(void)
 	    SyncWaveform();      // 启用同步，同步后，计数器将使用新值。
 	#endif
 
-	// EPWMxA死区参数配置，具体配置见3.3.1
+	// EPWMxA死区参数配置
 	#ifdef DB_GEN
 	    GenPWM1A_Basic();         // EPWMxA设置
 	    GenDeadBandWavefrom();    // 死区模块的设置
@@ -154,7 +154,7 @@ static void GenPWM1A_Basic(void)
 {
 /****************************************************************************/
 /*                                                                          */
-/*                       PWM 周期和频率的设置                                                         */
+/*                       PWM 周期/频率的设置                                                         */
 /*                                                                          */
 /****************************************************************************/
     // 配置时基模块的时钟分频器
@@ -520,22 +520,3 @@ static void PWMTZIsr(void)
 
     EHRPWMTZFlagClear(SOC_EHRPWM_1_REGS, EHRPWM_TZ_CYCLEBYCYCLE_CLEAR);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
